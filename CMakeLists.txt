@@ -59,3 +59,16 @@ if(MAVERICKS_MODE STREQUAL "native")
   add_test(NAME gh_runs COMMAND sh "${CMAKE_SOURCE_DIR}/tests/gh-runs-test.sh" "${GH_GOBIN}/gh")
   set_tests_properties(gh_runs PROPERTIES SKIP_RETURN_CODE 77)
 endif()
+
+option(GH_BUILD_UPDATER "Build the Sparkle updater (needs gh in the installed shipyard's product registry)" OFF)
+
+if(GH_BUILD_UPDATER)
+  include(MavericksSparkle)
+  mavericks_add_updater_app(
+    PRODUCT gh
+    PRODUCT_NAME "Mavericks GitHub CLI"
+    ALLOW_GENERIC
+    VERSION "${GH_VERSION}"
+    CONFIRM_TITLE "GitHub CLI for Mavericks updated"
+    CONFIRM_BODY "gh was updated. New shells and agents get the new version.")
+endif()
