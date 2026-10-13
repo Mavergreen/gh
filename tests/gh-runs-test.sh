@@ -24,4 +24,7 @@ esac
 help="$("$GH" help)" || a_eq 0 $? "gh help exits 0"
 [ -n "$help" ] || a_eq "some help text" "" "gh help prints something"
 a_contains "$help" "gh <command>" "gh help prints its usage"
+lic="$("$GH" licenses)" || a_eq 0 $? "gh licenses exits 0"
+a_contains "$lic" "GitHub CLI third-party dependencies" "gh licenses prints the embedded notices"
+case "$lic" in *"only available in official release builds"*) a_eq "embedded notices" "the placeholder message" "gh licenses is not the unembedded fallback" ;; esac
 a_done

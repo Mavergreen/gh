@@ -12,6 +12,19 @@ mkdir -p "$T/fixture/cmd/gh" "$T/bin"
 printf 'fixture license\n' > "$T/fixture/LICENSE"
 printf 'module github.com/cli/cli/v2\n' > "$T/fixture/go.mod"
 printf 'package main\n' > "$T/fixture/cmd/gh/main.go"
+mkdir -p "$T/fixture/script"
+cat > "$T/fixture/script/licenses" <<STUB
+#!/bin/bash
+printf 'LICENSES %s GOOS=%s GOARCH=%s GOBIN=%s GO=%s GOSUMDB=%s\n' "\$*" "\${GOOS-unset}" "\${GOARCH-unset}" "\${GOBIN-}" "\$(command -v go)" "\${GOSUMDB-}" >> "$T/log"
+d="internal/licenses/embed/\$1-\$2"
+mkdir -p "\$d"
+printf 'GitHub CLI third-party dependencies\n' > "\$d/report.txt"
+if [ -z "\${STUB_LICENSES_NO_THIRD_PARTY-}" ]; then
+  mkdir -p "\$d/third-party/example.com/m"
+  printf 'example license\n' > "\$d/third-party/example.com/m/LICENSE"
+  chmod -R a-w "\$d/third-party"
+fi
+STUB
 chmod -R a-w "$T/fixture"
 printf '{"Version":"v2.102.0","Time":"2026-09-30T02:40:02Z"}\n' > "$T/fixture.info"
 cat > "$T/bin/go" <<STUB
@@ -57,6 +70,18 @@ a_eq "$(cd "$T/buildroot/gh-work/src" && pwd)" "$bpwd" "build runs in a writable
 a_file_exists "gh produced" "$T/out/gh"
 a_eq "fixture license" "$(cat "$T/out/LICENSE")" "LICENSE is gh's, from the module"
 
+lic="$(grep '^LICENSES ' "$T/log" || true)"
+a_eq 1 "$(grep -c '^LICENSES darwin amd64 GOOS=unset GOARCH=unset ' "$T/log")" "script/licenses reports on darwin/amd64 from a host-arch environment"
+a_contains "$lic" "GOBIN=$T/buildroot/gh-work/hostbin " "go-licenses installs into the build root"
+a_contains "$lic" "GO=$T/bin/go " "script/licenses runs the pinned go"
+a_contains "$lic" "GOSUMDB=sum.golang.org" "go-licenses is checksum-verified"
+lic_at="$(grep -n '^LICENSES ' "$T/log" | head -1 | cut -d: -f1)"
+build_at="$(grep -n "^ARGS build .*-o $T/out/gh " "$T/log" | head -1 | cut -d: -f1)"
+[ -n "$lic_at" ] && [ -n "$build_at" ] && [ "$lic_at" -lt "$build_at" ] && _o=before || _o=after
+a_eq before "$_o" "the notices exist before the build that embeds them"
+rc=0; sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0 >/dev/null 2>&1 || rc=$?
+a_eq 0 "$rc" "a rebuild over read-only license files from the module cache succeeds"
+
 rc=0; sh "$SCRIPT" >/dev/null 2>&1 || rc=$?
 a_eq 2 "$rc" "no args is a usage error"
 
@@ -64,4 +89,5 @@ rm -rf "$T/out"
 a_fails "a failed module download fails the build" env STUB_FAIL_DOWNLOAD=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
 a_no_file "no gh after a failed download" "$T/out/gh"
 a_fails "a failed go build fails the script" env STUB_FAIL_BUILD=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
+a_fails "no third-party license texts fails the build" env STUB_LICENSES_NO_THIRD_PARTY=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
 a_done
