@@ -10,6 +10,8 @@ P="$1"
 t_tmp H
 unset MANPATH || true
 export HOME="$H"
+# platform: 10.9's man finds the link farm's pages through PATH, which only a login shell's path_helper sets
+eval "$(PATH=/usr/bin:/bin /usr/libexec/path_helper -s)"
 a_eq /usr/local/mavergreen/share/man/man1/gh.1 "$(man -w gh)" "man finds gh's page through the link farm"
 /bin/bash -n "$P/share/bash-completion/completions/gh" && _b=ok || _b=bad
 a_eq ok "$_b" "10.9's /bin/bash parses gh's bash completion"
