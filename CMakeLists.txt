@@ -38,15 +38,20 @@ endif()
 enable_testing()
 
 set(GH_GOBIN "${CMAKE_BINARY_DIR}/gobin")
+set(GH_SHARE_OUTPUTS
+  "${GH_GOBIN}/share/man/man1/gh.1"
+  "${GH_GOBIN}/share/bash-completion/completions/gh"
+  "${GH_GOBIN}/share/zsh/site-functions/_gh"
+  "${GH_GOBIN}/share/fish/vendor_completions.d/gh.fish")
 add_custom_command(
-  OUTPUT "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE"
+  OUTPUT "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE" ${GH_SHARE_OUTPUTS}
   COMMAND sh "${CMAKE_SOURCE_DIR}/build/build-gh.sh" "${GH_GO}" "${GH_GOBIN}" "${GH_UPSTREAM}"
   DEPENDS "${CMAKE_SOURCE_DIR}/build/build-gh.sh"
           "${CMAKE_SOURCE_DIR}/UPSTREAM_VERSION"
           "${CMAKE_SOURCE_DIR}/components/golang/version"
   COMMENT "building gh ${GH_UPSTREAM} for 10.9"
   VERBATIM)
-add_custom_target(gh_binary ALL DEPENDS "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE")
+add_custom_target(gh_binary ALL DEPENDS "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE" ${GH_SHARE_OUTPUTS})
 
 # spec: INGREDIENTS.md "Decisions" -- labelColor is a Go struct field, not an ObjC selector
 add_test(NAME compat_guard_gh
