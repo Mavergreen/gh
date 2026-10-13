@@ -22,6 +22,12 @@ info="$(printf '%s\n' "$json" | sed -n 's/^[[:space:]]*"Info": "\(.*\)",*$/\1/p'
 [ -d "$dir" ] && [ -f "$info" ] || { echo "build-gh.sh: no module Dir/Info in: $json" >&2; exit 1; }
 date="$(sed -n 's/.*"Time":"\([0-9-]*\)T.*/\1/p' "$info")"
 [ -n "$date" ] || { echo "build-gh.sh: no Time in $info" >&2; exit 1; }
+# platform: date -j is BSD and date -d is GNU, so awk turns the RFC 3339 UTC time into Unix seconds
+epoch="$(sed -n 's/.*"Time":"\([0-9T:-]*\)Z".*/\1/p' "$info" | awk -F'[-T:]' '{
+  y = $1; m = $2; if (m <= 2) y--; era = int(y / 400); yoe = y - era * 400
+  doy = int((153 * ((m + 9) % 12) + 2) / 5) + $3 - 1; doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+  print (era * 146097 + doe - 719468) * 86400 + $4 * 3600 + $5 * 60 + $6 }')"
+[ -n "$epoch" ] || { echo "build-gh.sh: no UTC Time in $info" >&2; exit 1; }
 
 # platform: go-licenses copies read-only files out of the module cache, and rm -rf can't remove them
 chmod -R u+w "$SRC" 2>/dev/null || true
@@ -43,3 +49,28 @@ emb="$SRC/internal/licenses/embed/darwin-amd64"
 [ -n "$(find "$emb/third-party" -type f 2>/dev/null | head -1)" ] || { echo "build-gh.sh: script/licenses produced no third-party license texts in $emb" >&2; exit 1; }
 "$GO" build -trimpath -ldflags "$LD" -o "$OUT/gh" ./cmd/gh
 cp "$SRC/LICENSE" "$OUT/LICENSE"
+
+rm -rf "$OUT/share"
+mkdir -p "$OUT/share/man/man1" "$OUT/share/bash-completion/completions" \
+  "$OUT/share/zsh/site-functions" "$OUT/share/fish/vendor_completions.d"
+# spec: INGREDIENTS.md "Man pages, completions and license notices" -- upstream's gen-docs; GH_VERSION
+#       fills each page's Source and SOURCE_DATE_EPOCH dates it by the release, not the build
+run_host env GH_VERSION="$VERSION" SOURCE_DATE_EPOCH="$epoch" "$GO" run ./cmd/gen-docs --man-page --doc-path "$OUT/share/man/man1"
+[ -s "$OUT/share/man/man1/gh.1" ] || { echo "build-gh.sh: gen-docs wrote no gh.1" >&2; exit 1; }
+
+# spec: INGREDIENTS.md "Man pages, completions and license notices" -- no build step runs translated, so off
+#       x86_64 a host-arch gh built from the same source prints the completions
+case "$(uname -m)" in
+  x86_64) gen="$OUT/gh" ;;
+  *)
+    mkdir -p "$WORK/host"
+    run_host "$GO" build -trimpath -o "$WORK/host/gh" ./cmd/gh
+    gen="$WORK/host/gh" ;;
+esac
+completion() {
+  "$gen" completion -s "$1" > "$OUT/share/$2" || { echo "build-gh.sh: gh completion -s $1 failed" >&2; exit 1; }
+  [ -s "$OUT/share/$2" ] || { echo "build-gh.sh: gh completion -s $1 wrote nothing" >&2; exit 1; }
+}
+completion bash bash-completion/completions/gh
+completion zsh zsh/site-functions/_gh
+completion fish fish/vendor_completions.d/gh.fish
