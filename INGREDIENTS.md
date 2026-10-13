@@ -8,6 +8,7 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 | golang-127 cross toolchain (builds `gh`; its runtime and the legacy-support shim are linked in) | `components/golang/version` | ✅ `github-releases` on `Mavergreen/golang-127`, `-mavericks.N` versioning | a bump repackages |
 | MacOSX10.9 SDK, CMake modules, compat guard, packaging and signing scripts | `Mavergreen/shipyard@v1` | ✅ github-actions manager tracks the tag | `@v1` moves without the pin changing, so nothing repackages by itself |
 | Sparkle, in the updater | shipyard's `fetch_sparkle_framework.sh`, pinned by hash there | ❌ untrackable here: shipyard owns that pin | follows shipyard |
+| go-licenses (generates the notices `gh licenses` prints) | upstream's `script/licenses` | ❌ untrackable here: upstream owns that pin | follows `UPSTREAM_VERSION` |
 
 ## Declared state
 
@@ -39,9 +40,26 @@ keeps field names in the binary's type data. Exit: when the guard reads selector
 `gh` is built without upstream's `updateable` tag, so it never tells users to fetch GitHub's build,
 which cannot run on 10.9. The Sparkle updater is the update channel.
 
-Deferred: the man pages, the shell completions, and the third-party license notices `gh licenses`
-prints. The first release ships `bin/gh` and gh's own `LICENSE`. Exit: phase 2 in the maintainer's
-backlog, which adds all three; delete this paragraph then.
+## Man pages, completions and license notices
+
+Each is made by upstream's own tool, as upstream's release does:
+
+- `script/licenses darwin amd64` installs go-licenses at the commit it pins and writes the report and
+  license texts that `gh licenses` prints into `internal/licenses/embed/darwin-amd64`, before the build
+  embeds them.
+- `go run ./cmd/gen-docs --man-page` writes `gh.1` and a page per subcommand. `GH_VERSION` fills each
+  page's source line, and `SOURCE_DATE_EPOCH`, taken from the module's release time, dates the pages by
+  the release instead of the build day.
+- `gh completion -s bash|zsh|fish` prints the completions, shipped as printed.
+
+All three tools are built for the build host, with `GOOS` and `GOARCH` unset. On an arm64 Mac a
+host-arch `gh` built from the same source prints the completions, so no build step runs under
+Rosetta. On x86_64 the `gh` being shipped prints them itself.
+
+The man pages install under `share/man/man1`, which the link farm exports, so `man gh` works after
+install. The completions install under `share/bash-completion/completions`,
+`share/zsh/site-functions` and `share/fish/vendor_completions.d` in gh's own tree, and nothing hooks
+them into a shell. The bash script also needs the bash-completion package, which 10.9 doesn't ship.
 
 ## Releasing
 
