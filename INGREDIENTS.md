@@ -52,9 +52,11 @@ Each is made by upstream's own tool, as upstream's release does:
   the release instead of the build day.
 - `gh completion -s bash|zsh|fish` prints the completions, shipped as printed.
 
-All three tools are built for the build host, with `GOOS` and `GOARCH` unset. On an arm64 Mac a
-host-arch `gh` built from the same source prints the completions, so no build step runs under
-Rosetta. On x86_64 the `gh` being shipped prints them itself.
+All three tools are built for the build host, with `GOOS` and `GOARCH` set to its own
+`go env GOHOSTOS`/`GOHOSTARCH`: unsetting them is not enough, because the cross toolchain's own
+`go.env` defaults them to darwin/amd64. On an arm64 Mac a host-arch `gh` built from the same source
+prints the completions, so no build step runs under Rosetta. On an amd64 host the `gh` being shipped
+prints them itself.
 
 The man pages install under `share/man/man1`, which the link farm exports, so `man gh` works after
 install. The completions install under `share/bash-completion/completions`,

@@ -38,8 +38,12 @@ find "$SRC" -name '._*' -delete
 # spec: INGREDIENTS.md "Decisions" -- upstream's -s -w, but no -linkmode (the toolchain external-links darwin/amd64)
 LD="-s -w -X github.com/cli/cli/v2/internal/build.Version=$VERSION -X github.com/cli/cli/v2/internal/build.Date=$date"
 cd "$SRC"
-# platform: 10.9's env has no -u, and bash 3.2's set -e ignores a failing ( ) subshell
-run_host() { ( unset GOOS GOARCH; "$@" ) || exit 1; }
+# spec: INGREDIENTS.md "Man pages, completions and license notices" -- the cross toolchain's own go.env
+#       defaults GOOS/GOARCH to darwin/amd64, so host tools name the host explicitly
+hostos="$("$GO" env GOHOSTOS)"; hostarch="$("$GO" env GOHOSTARCH)"
+[ -n "$hostos" ] && [ -n "$hostarch" ] || { echo "build-gh.sh: $GO env GOHOSTOS/GOHOSTARCH printed nothing" >&2; exit 1; }
+# platform: bash 3.2's set -e ignores a failing ( ) subshell
+run_host() { ( GOOS=$hostos GOARCH=$hostarch; export GOOS GOARCH; "$@" ) || exit 1; }
 
 # spec: INGREDIENTS.md "Man pages, completions and license notices" -- upstream's script/licenses, unchanged,
 #       builds go-licenses for this host and reports on darwin/amd64; gh embeds what it writes
@@ -59,9 +63,9 @@ run_host env GH_VERSION="$VERSION" SOURCE_DATE_EPOCH="$epoch" "$GO" run ./cmd/ge
 [ -s "$OUT/share/man/man1/gh.1" ] || { echo "build-gh.sh: gen-docs wrote no gh.1" >&2; exit 1; }
 
 # spec: INGREDIENTS.md "Man pages, completions and license notices" -- no build step runs translated, so off
-#       x86_64 a host-arch gh built from the same source prints the completions
-case "$(uname -m)" in
-  x86_64) gen="$OUT/gh" ;;
+#       amd64 a host-arch gh built from the same source prints the completions
+case "$hostos/$hostarch" in
+  darwin/amd64) gen="$OUT/gh" ;;
   *)
     mkdir -p "$WORK/host"
     run_host "$GO" build -trimpath -o "$WORK/host/gh" ./cmd/gh

@@ -29,9 +29,14 @@ chmod -R a-w "$T/fixture"
 printf '{"Version":"v2.102.0","Time":"2026-09-30T02:40:02Z"}\n' > "$T/fixture.info"
 cat > "$T/bin/go" <<STUB
 #!/bin/sh
+# like golang-127's cross toolchain, whose own go.env defaults GOOS=darwin GOARCH=amd64
+case "\$1 \$2" in
+  "env GOHOSTOS") echo darwin; exit 0 ;;
+  "env GOHOSTARCH") echo "\${STUB_HOSTARCH:-arm64}"; exit 0 ;;
+esac
 {
   printf 'ARGS %s\n' "\$*"
-  printf 'ENV GOTOOLCHAIN=%s CGO_ENABLED=%s GOOS=%s GOARCH=%s\n' "\${GOTOOLCHAIN-}" "\${CGO_ENABLED-}" "\${GOOS-}" "\${GOARCH-}"
+  printf 'ENV GOTOOLCHAIN=%s CGO_ENABLED=%s GOOS=%s GOARCH=%s\n' "\${GOTOOLCHAIN-}" "\${CGO_ENABLED-}" "\${GOOS:-darwin}" "\${GOARCH:-amd64}"
   printf 'VERIFY GOENV=%s GOFLAGS=%s GOSUMDB=%s GONOSUMDB=%s GONOSUMCHECK=%s GOPRIVATE=%s GOINSECURE=%s\n' "\${GOENV-}" "\${GOFLAGS-}" "\${GOSUMDB-}" "\${GONOSUMDB-}" "\${GONOSUMCHECK-}" "\${GOPRIVATE-}" "\${GOINSECURE-}"
   printf 'PWD %s\n' "\$(pwd)"
 } >> "$T/log"
@@ -51,7 +56,7 @@ case "\$1" in
 GH
     chmod +x "\$o" ;;
   run)
-    printf 'GENDOCS GH_VERSION=%s SOURCE_DATE_EPOCH=%s GOOS=%s GOARCH=%s\n' "\${GH_VERSION-}" "\${SOURCE_DATE_EPOCH-}" "\${GOOS-unset}" "\${GOARCH-unset}" >> "$T/log"
+    printf 'GENDOCS GH_VERSION=%s SOURCE_DATE_EPOCH=%s GOOS=%s GOARCH=%s\n' "\${GH_VERSION-}" "\${SOURCE_DATE_EPOCH-}" "\${GOOS:-darwin}" "\${GOARCH:-amd64}" >> "$T/log"
     [ -z "\${STUB_FAIL_GENDOCS-}" ] || exit 1
     d=""; prev=""
     for a in "\$@"; do [ "\$prev" = "--doc-path" ] && d="\$a"; prev="\$a"; done
@@ -60,8 +65,6 @@ GH
 esac
 STUB
 chmod +x "$T/bin/go"
-printf '#!/bin/sh\n[ "$1" = -m ] && echo "${STUB_UNAME:-arm64}" || /usr/bin/uname "$@"\n' > "$T/bin/uname"
-chmod +x "$T/bin/uname"
 PATH="$T/bin:$PATH"
 
 export MAVERICKS_BUILD_ROOT="$T/buildroot"
@@ -86,7 +89,7 @@ a_eq "$(cd "$T/buildroot/gh-work/src" && pwd)" "$bpwd" "build runs in a writable
 a_file_exists "gh produced" "$T/out/gh"
 a_eq "fixture license" "$(cat "$T/out/LICENSE")" "LICENSE is gh's, from the module"
 
-a_eq 1 "$(grep -c '^GENDOCS GH_VERSION=2.102.0 SOURCE_DATE_EPOCH=1790736002 GOOS=unset GOARCH=unset$' "$T/log")" "gen-docs: version and module date, host arch"
+a_eq 1 "$(grep -c '^GENDOCS GH_VERSION=2.102.0 SOURCE_DATE_EPOCH=1790736002 GOOS=darwin GOARCH=arm64$' "$T/log")" "gen-docs: version and module date, built for this host"
 a_file_exists "gh.1 generated" "$T/out/share/man/man1/gh.1"
 a_file_exists "subcommand pages generated" "$T/out/share/man/man1/gh-pr.1"
 a_no_file "a man page from an earlier build does not linger" "$T/out/share/man/man1/gh-stale.1"
@@ -94,12 +97,12 @@ a_eq "# bash completion for gh" "$(cat "$T/out/share/bash-completion/completions
 a_eq "# zsh completion for gh" "$(cat "$T/out/share/zsh/site-functions/_gh")" "zsh completion as gh prints it"
 a_eq "# fish completion for gh" "$(cat "$T/out/share/fish/vendor_completions.d/gh.fish")" "fish completion as gh prints it"
 a_no_file "no Debian vendor-completions copy" "$T/out/share/zsh/vendor-completions"
-a_eq 2 "$(grep -c '^ARGS build ' "$T/log")" "off x86_64, a host-arch gh is built to print the completions"
+a_eq 2 "$(grep -c '^ARGS build ' "$T/log")" "off amd64, a host-arch gh is built to print the completions"
 hostenv="$(grep -A1 "^ARGS build .*-o $T/buildroot/gh-work/host/gh " "$T/log" | sed -n 2p)"
-a_eq "ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOOS= GOARCH=" "$hostenv" "the host gh is built for this host"
+a_eq "ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOOS=darwin GOARCH=arm64" "$hostenv" "the host gh is built for this host, whatever the toolchain's go.env defaults to"
 
 lic="$(grep '^LICENSES ' "$T/log" || true)"
-a_eq 1 "$(grep -c '^LICENSES darwin amd64 GOOS=unset GOARCH=unset ' "$T/log")" "script/licenses reports on darwin/amd64 from a host-arch environment"
+a_eq 1 "$(grep -c '^LICENSES darwin amd64 GOOS=darwin GOARCH=arm64 ' "$T/log")" "script/licenses reports on darwin/amd64, installing go-licenses for this host"
 a_contains "$lic" "GOBIN=$T/buildroot/gh-work/hostbin " "go-licenses installs into the build root"
 a_contains "$lic" "GO=$T/bin/go " "script/licenses runs the pinned go"
 a_contains "$lic" "GOSUMDB=sum.golang.org" "go-licenses is checksum-verified"
@@ -120,8 +123,8 @@ a_fails "a failed go build fails the script" env STUB_FAIL_BUILD=1 sh "$SCRIPT" 
 a_fails "a failed gen-docs fails the build" env STUB_FAIL_GENDOCS=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
 a_fails "an empty completion fails the build" env STUB_EMPTY_COMPLETION=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
 : > "$T/log"; rm -rf "$T/out"
-STUB_UNAME=x86_64 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0 >/dev/null
-a_eq 1 "$(grep -c '^ARGS build ' "$T/log")" "on x86_64 the target gh prints the completions itself"
+STUB_HOSTARCH=amd64 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0 >/dev/null
+a_eq 1 "$(grep -c '^ARGS build ' "$T/log")" "on an amd64 host the target gh prints the completions itself"
 a_eq "# zsh completion for gh" "$(cat "$T/out/share/zsh/site-functions/_gh")" "and they are still there"
 a_fails "no third-party license texts fails the build" env STUB_LICENSES_NO_THIRD_PARTY=1 sh "$SCRIPT" "$T/bin/go" "$T/out" 2.102.0
 a_done
