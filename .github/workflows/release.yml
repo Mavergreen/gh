@@ -84,18 +84,18 @@ jobs:
       - name: Install patched Go (mavericks-golang cross toolchain)
         run: |
           set -eu
+          . "$SHIPYARD_SCRIPTS/mavericks_fetch.sh"
           ver="$(cat components/golang/version)"
           gover="${ver%%-mavericks.*}"; rev="${ver#*-}"
           line="$(printf '%s' "$gover" | cut -d. -f1,2 | tr -d .)"
           base="https://github.com/Mavergreen/golang-${line}/releases/download/${ver}"
           sums="$RUNNER_TEMP/SHA256SUMS"
-          curl -fL --retry 3 -o "$sums" "$base/SHA256SUMS"
+          shipyard_curl "$base/SHA256SUMS" "$sums"
           cand="golang-${gover}-cross-${rev}.pkg"
           hash="$(awk -v f="$cand" '$2==f {print $1}' "$sums")"
           [ -n "$hash" ] || { echo "::error::no $cand in golang-${line} ${ver} SHA256SUMS"; exit 1; }
           pkg="$RUNNER_TEMP/$cand"
-          curl -fL --retry 3 -o "$pkg" "$base/$cand"
-          printf '%s  %s\n' "$hash" "$pkg" | shasum -a 256 -c -
+          shipyard_fetch_verified "$base/$cand" "$hash" "$RUNNER_TEMP" "$cand"
           sudo installer -pkg "$pkg" -target /
 
       - name: Cross-build gh and the updater, then the compat guard
