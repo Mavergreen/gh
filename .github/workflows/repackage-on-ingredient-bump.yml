@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - components/golang/version
+      - components/clang22/version
 
 permissions: {}
 

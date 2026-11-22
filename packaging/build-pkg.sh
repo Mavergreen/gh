@@ -19,7 +19,7 @@ MAVERICKS_ROOT=$REPO; export MAVERICKS_ROOT
 [ -f "$GHBIN" ] || { echo "build-pkg: no $GHBIN" >&2; exit 1; }
 [ -f "$LICENSE_SRC" ] || { echo "build-pkg: no $LICENSE_SRC" >&2; exit 1; }
 [ -f "$GHOUT/share/man/man1/gh.1" ] || { echo "build-pkg: no man pages in $GHOUT/share" >&2; exit 1; }
-[ -d "$APP" ] || { echo "build-pkg: no updater $APP; configure with -DGH_BUILD_UPDATER=ON" >&2; exit 1; }
+[ -d "$APP" ] || { echo "build-pkg: no updater $APP; build it with build/build-updater.sh" >&2; exit 1; }
 work=$(mktemp -d "${TMPDIR:-/tmp}/gh-pkg.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 ROOT=$work/root

@@ -6,6 +6,7 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 |---|---|---|---|
 | gh source (own upstream: the `github.com/cli/cli/v2` module, verified by the Go checksum database) | `UPSTREAM_VERSION` | ✅ `github-releases` on `cli/cli` | a push to main cuts `-mavericks.1` |
 | golang-127 cross toolchain (builds `gh`; its runtime and the legacy-support shim are linked in) | `components/golang/version` | ✅ `github-releases` on `Mavergreen/golang-127`, `-mavericks.N` versioning | a bump repackages |
+| clang22 (compiles and links the Sparkle updater, x86_64 at 10.9 and arm64 at 11.0) | `components/clang22/version` | ✅ `github-releases` on `Mavergreen/clang-22`, `-mavericks.N` versioning | a bump repackages |
 | MacOSX10.9 SDK, CMake modules, compat guard, packaging and signing scripts | `Mavergreen/shipyard@v1` | ✅ github-actions manager tracks the tag | `@v1` moves without the pin changing, so nothing repackages by itself |
 | Sparkle, in the updater | shipyard's `fetch_sparkle_framework.sh`, pinned by hash there | ❌ untrackable here: shipyard owns that pin | follows shipyard |
 | go-licenses (generates the notices `gh licenses` prints) | upstream's `script/licenses` | ❌ untrackable here: upstream owns that pin | follows `UPSTREAM_VERSION` |
@@ -14,6 +15,7 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 
 - upstream: UPSTREAM_VERSION
 - golang: components/golang/version
+- clang22: components/clang22/version
 
 ## Decisions
 

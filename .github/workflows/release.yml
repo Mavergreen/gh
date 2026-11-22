@@ -89,14 +89,17 @@ jobs:
           { echo "ver=$full"; echo "publish=$pub"; } >> "$GITHUB_OUTPUT"
           echo "version=$full publish=$pub"
 
-      - name: Cross-build gh and the updater, then the compat guard
+      - name: Cross-build gh, then the compat guard
         run: |
-          shipyard-cmake --preset cross -DGH_BUILD_UPDATER=ON
+          shipyard-cmake --preset cross
           shipyard-cmake --build --preset cross
           shipyard-ctest --preset cross
 
       - name: Locate the build
         run: echo "BUILD=${TMPDIR:-/tmp}/mm-build/$(basename "$PWD")-cross" >> "$GITHUB_ENV"
+
+      - name: Build the updater with clang22, x86_64 and arm64
+        run: echo "UPDATER=$(sh build/build-updater.sh "$BUILD/updater")" >> "$GITHUB_ENV"
 
       - name: Run the repo's tests
         run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
@@ -109,7 +112,7 @@ jobs:
           VER: ${{ steps.ver.outputs.ver }}
         run: |
           set -eu
-          pkg="$(sh packaging/build-pkg.sh "$BUILD/gh-updater.app" "$BUILD/gobin" "$VER" "$BUILD/dist")"
+          pkg="$(sh packaging/build-pkg.sh "$UPDATER" "$BUILD/gobin" "$VER" "$BUILD/dist")"
           [ -f "$pkg" ] || { echo "::error::build-pkg.sh did not print a pkg path: $pkg"; exit 1; }
           echo "PKG=$pkg" >> "$GITHUB_ENV"
 

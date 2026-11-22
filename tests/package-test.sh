@@ -50,4 +50,8 @@ mkdir "$T/out"
 a_file_exists "gh extracts" "$T/out/usr/local/mavergreen/gh/bin/gh"
 cmp "$T/out/usr/local/mavergreen/gh/bin/gh" "$GHBIN" && _s=same || _s=differs
 a_eq same "$_s" "the packaged gh is byte-identical to the tested one"
+u="$T/out/Library/Application Support/Mavergreen/gh-updater.app/Contents/MacOS/gh-updater"
+a_file_exists "the updater extracts" "$u"
+_a="$("${LIPO:-lipo}" -info "$u" | sed 's/.*: //' | tr ' ' '\n' | grep . | LC_ALL=C sort | tr '\n' ' ')"
+a_eq "arm64 x86_64 " "$_a" "the updater is universal, so Apple Silicon runs it without Rosetta"
 a_done
