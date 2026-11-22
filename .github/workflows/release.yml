@@ -98,18 +98,66 @@ jobs:
       - name: Locate the build
         run: echo "BUILD=${TMPDIR:-/tmp}/mm-build/$(basename "$PWD")-cross" >> "$GITHUB_ENV"
 
-      - name: Build the updater with clang22, x86_64 and arm64
-        run: echo "UPDATER=$(sh build/build-updater.sh "$BUILD/updater")" >> "$GITHUB_ENV"
-
       - name: Run the repo's tests
         run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
+
+      - name: The build must not have written into the source tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
+
+      - name: Hand gh, its man pages and completions to the package job, modes kept
+        run: tar -cf "$RUNNER_TEMP/gobin.tar" -C "$BUILD" gobin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gobin
+          if-no-files-found: error
+          retention-days: 3
+          path: ${{ runner.temp }}/gobin.tar
+
+  package:
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VER: ${{ needs.build.outputs.ver }}
+      PUBLISH: ${{ needs.build.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+
+      - name: Build out of tree
+        run: |
+          echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
+          echo "BUILD=$RUNNER_TEMP/gh" >> "$GITHUB_ENV"
+
+      - name: The pkg test reads its payload with cpio
+        run: command -v cpio || { sudo apt-get update -qq && sudo apt-get install -y -qq cpio; }
+
+      - name: Pin the version the build job resolved
+        run: printf '%s\n' "$VER" > VERSION
+
+      - name: Record the pre-build tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: gobin
+          path: ${{ runner.temp }}
+
+      - name: Unpack the built gh
+        run: mkdir -p "$BUILD" && tar -xf "$RUNNER_TEMP/gobin.tar" -C "$BUILD"
+
+      - name: Build the updater with clang22, x86_64 and arm64
+        run: echo "UPDATER=$(sh build/build-updater.sh "$BUILD/updater")" >> "$GITHUB_ENV"
 
       - name: Check the pinned ingredients
         run: sh "$SHIPYARD_SCRIPTS/check-ingredient-pins.sh"
 
       - name: Package the .pkg
-        env:
-          VER: ${{ steps.ver.outputs.ver }}
         run: |
           set -eu
           pkg="$(sh packaging/build-pkg.sh "$UPDATER" "$BUILD/gobin" "$VER" "$BUILD/dist")"
@@ -120,32 +168,33 @@ jobs:
         run: sh tests/package-test.sh "$PKG" "$BUILD/gobin/gh"
 
       - name: Release notes
-        env:
-          VER: ${{ steps.ver.outputs.ver }}
         run: |
           set -eu
           sh "$SHIPYARD_SCRIPTS/release-notes.sh" --tag "$VER" --version "$VER" \
             --product "GitHub CLI" --min-os 10.9.5 --out "$BUILD/dist/RELEASE_NOTES.md"
 
       - name: Record the declared state in the notes
-        if: steps.ver.outputs.publish == 'yes'
+        if: env.PUBLISH == 'yes'
         run: |
           set -eu
           digest="$(sh "$SHIPYARD_SCRIPTS/release-state.sh")"
           sh "$SHIPYARD_SCRIPTS/release-state-record.sh" --notes-file "$BUILD/dist/RELEASE_NOTES.md" --digest "$digest"
 
+      - name: clang22's Mach-O readers, for the steps that read the pkg
+        run: |
+          set -eu
+          CL="$(sh build/fetch-clang22.sh)"
+          { echo "LIPO=$CL/bin/llvm-lipo"; echo "OTOOL=$CL/bin/llvm-otool"; echo "NM=$CL/bin/llvm-nm"; } >> "$GITHUB_ENV"
+
       - name: Unsigned stand-in feeds (never published)
-        if: steps.ver.outputs.publish != 'yes'
-        env:
-          VER: ${{ steps.ver.outputs.ver }}
+        if: env.PUBLISH != 'yes'
         run: sh "$SHIPYARD_SCRIPTS/stand-in-feeds.sh" "$BUILD/dist" "$VER"
 
       - name: EdDSA-sign the .pkg + write gh.xml
-        if: steps.ver.outputs.publish == 'yes'
+        if: env.PUBLISH == 'yes'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           GH_TOKEN: ${{ github.token }}
-          VER: ${{ steps.ver.outputs.ver }}
         run: |
           set -eu
           printenv SPARKLE_PRIVATE_KEY | grep -q . || { echo "::error::SPARKLE_PRIVATE_KEY secret not set"; exit 1; }
@@ -156,19 +205,17 @@ jobs:
             --notes-file "$BUILD/dist/RELEASE_NOTES.md" --pkg "$PKG" --min-os 10.9.5
 
       - name: Artifact conformance
-        env:
-          VER: ${{ steps.ver.outputs.ver }}
         run: |
           sh "$SHIPYARD_SCRIPTS/artifact-facts.sh" "$BUILD/dist" "$VER" \
             | sh "$SHIPYARD_SCRIPTS/check-artifact-conformance.sh"
 
       - name: The feed is an upgrade on its line
-        if: steps.ver.outputs.publish == 'yes'
+        if: env.PUBLISH == 'yes'
         env:
-          VER: ${{ steps.ver.outputs.ver }}
+          GH_TOKEN: ${{ github.token }}
         run: sh "$SHIPYARD_SCRIPTS/assert_appcast_upgradeable.sh" --appcast "$BUILD/dist/gh.xml" --version "$VER"
 
-      - name: The build must not have written into the source tree
+      - name: The package job must not have written into the source tree
         run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
 
       - uses: actions/upload-artifact@v7
@@ -177,7 +224,7 @@ jobs:
           path: ${{ env.BUILD }}/dist/*
 
   on-mavericks:
-    needs: [build]
+    needs: [package]
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
@@ -205,7 +252,7 @@ jobs:
             [ "$status" -eq 0 ] || { echo "gh-installed-test.sh exited $status (77 is a skip, a failure here)"; exit 1; }
 
   scan:
-    needs: [build]
+    needs: [build, package]
     if: always() && (needs.build.outputs.publish == 'yes')
     permissions:
       actions: read
@@ -217,7 +264,7 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [build, scan, on-mavericks]
+    needs: [build, package, scan, on-mavericks]
     if: needs.build.outputs.publish == 'yes'
     permissions:
       contents: write
@@ -239,7 +286,7 @@ jobs:
   required:
     name: required (release)
     if: always()
-    needs: [build, on-mavericks, scan, publish, retry]
+    needs: [build, package, on-mavericks, scan, publish, retry]
     runs-on: ubuntu-latest
     steps:
       - uses: Mavergreen/shipyard/.github/actions/required-gate@v1
