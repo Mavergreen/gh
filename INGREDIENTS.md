@@ -17,6 +17,10 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 - golang: components/golang/version
 - clang22: components/clang22/version
 
+## Conformance deviations
+
+- macos-runner:release.yml:build: golang-127's cross toolchain runs only on macOS; exit: a Linux-hosted golang-127
+
 ## Decisions
 
 The package carries an x86_64 `gh` only, not a universal one. Go 1.27's darwin/arm64 linker stamps a
