@@ -1,0 +1,23 @@
+name: ingredients-settled
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 * * * *"
+
+permissions: {}
+
+concurrency:
+  group: ingredients-settled-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  settled:
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: read
+    uses: Mavergreen/shipyard/.github/workflows/ingredients-settled.yml@v1
+    with:
+      mode: "${{ github.event_name == 'schedule' && 'sweep' || 'pr' }}"
