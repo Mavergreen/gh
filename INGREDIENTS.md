@@ -37,11 +37,10 @@ shim was linked (`MAVERICKS_REQUIRE_DEFINED_SYMBOLS`).
 `gh version` prints the bare upstream version (`2.102.0`), not this package's `2.102.0-mavericks.N`,
 as tailscale does. The package version is in the `.pkg` name, the release tag and the updater.
 
-The compat guard allows one "selector", `labelColor` (`MAVERICKS_ALLOW_SELECTORS`). `gh` contains no
-Objective-C at all: no `__objc` sections and no Objective-C imports. The guard finds the word through
-`strings`, because the terminal UI library tview has a Go struct field named `labelColor`, and Go
-keeps field names in the binary's type data. Exit: when the guard reads selectors only from
-`__objc_methname`, drop the allowance.
+The compat guard measures `gh`'s Objective-C sends with shipyard's strict analyzer
+(`MAVERGREEN_OBJC_STRICT=1`). `gh` has no Objective-C, so the analyzer should find none. The updater's
+guard runs inside `mavericks_add_updater_app`, which has no strict switch, so it keeps shipyard's
+default. Exit: when shipyard flips the default, or gives the updater a switch.
 
 `gh` is built without upstream's `updateable` tag, so it never tells users to fetch GitHub's build,
 which cannot run on 10.9. The Sparkle updater is the update channel.

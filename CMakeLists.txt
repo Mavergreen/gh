@@ -53,10 +53,9 @@ add_custom_command(
   VERBATIM)
 add_custom_target(gh_binary ALL DEPENDS "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE" ${GH_SHARE_OUTPUTS})
 
-# spec: INGREDIENTS.md "Decisions" -- labelColor is a Go struct field, not an ObjC selector
 add_test(NAME compat_guard_gh
   COMMAND ${CMAKE_COMMAND} -E env MAVERICKS_REQUIRE_DEFINED_SYMBOLS=_clock_gettime
-    MAVERICKS_ALLOW_SELECTORS=labelColor
+    MAVERGREEN_OBJC_STRICT=1
     sh "${MavericksShipyard_SCRIPTS}/assert_binary_compatible.sh" "${GH_GOBIN}/gh")
 
 # A cross build's x86_64 gh runs on a 10.9 guest instead (release.yml's on-mavericks job).
