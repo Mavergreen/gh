@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- drives shipyard's stage_product.sh, build_component_pkg.sh and set_install_floor.sh
+# platform: host-agnostic
 #   usage: build-pkg.sh UPDATER-APP GH-OUT VERSION OUT-DIR
 #          GH-OUT is build-gh.sh's output: gh, LICENSE and share/. Stages gh (byte for byte as built and
 #          tested), its man pages and completions, gh's LICENSE, the README and the updater under
