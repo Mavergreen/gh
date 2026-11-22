@@ -225,3 +225,23 @@ jobs:
     with:
       version: ${{ needs.build.outputs.ver }}
       artifact: gh
+
+  retry:
+    needs: [build, publish]
+    if: always() && needs.publish.result == 'failure'
+    permissions:
+      contents: read
+      actions: write
+    uses: Mavergreen/shipyard/.github/workflows/retry-release.yml@v1
+    with:
+      version: ${{ needs.build.outputs.ver }}
+
+  required:
+    name: required (release)
+    if: always()
+    needs: [build, on-mavericks, scan, publish, retry]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Mavergreen/shipyard/.github/actions/required-gate@v1
+        with:
+          needs: ${{ toJSON(needs) }}
