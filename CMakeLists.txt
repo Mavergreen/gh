@@ -6,7 +6,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
   file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" GH_VERSION LIMIT_COUNT 1)
 endif()
 
-project(GhForMavericks LANGUAGES C)
+project(GhForMavericks LANGUAGES NONE)
 
 find_package(MavericksShipyard REQUIRED)
 include(Mavericks)
@@ -54,9 +54,8 @@ add_custom_command(
 add_custom_target(gh_binary ALL DEPENDS "${GH_GOBIN}/gh" "${GH_GOBIN}/LICENSE" ${GH_SHARE_OUTPUTS})
 
 add_test(NAME compat_guard_gh
-  COMMAND ${CMAKE_COMMAND} -E env MAVERICKS_REQUIRE_DEFINED_SYMBOLS=_clock_gettime
-    MAVERGREEN_OBJC_STRICT=1
-    sh "${MavericksShipyard_SCRIPTS}/assert_binary_compatible.sh" "${GH_GOBIN}/gh")
+  COMMAND ${CMAKE_COMMAND} -E env "SHIPYARD_SCRIPTS=${MavericksShipyard_SCRIPTS}"
+    sh "${CMAKE_SOURCE_DIR}/build/compat-guard.sh" "${GH_GOBIN}/gh")
 
 # A cross build's x86_64 gh runs on a 10.9 guest instead (release.yml's on-mavericks job).
 if(MAVERICKS_MODE STREQUAL "native")
