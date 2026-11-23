@@ -48,11 +48,6 @@ jobs:
         with:
           products: go127-cross@${{ steps.pins.outputs.golang }}
 
-      - name: Build out of tree
-        run: |
-          echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
-          echo "BUILD=$RUNNER_TEMP/mm-build/gh-cross" >> "$GITHUB_ENV"
-
       - name: Record the pre-build tree
         run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
 
@@ -89,13 +84,13 @@ jobs:
           { echo "ver=$full"; echo "publish=$pub"; } >> "$GITHUB_OUTPUT"
           echo "version=$full publish=$pub"
 
-      # platform: shipyard's presets live in its macOS pkg, so a Linux configure names the toolchain file and the cross mode itself
       - name: Cross-build gh for 10.9 with the Linux-hosted go127-cross
         run: |
-          set -eu
-          cmake -S . -B "$BUILD" -DCMAKE_TOOLCHAIN_FILE="$(dirname "$SHIPYARD_SCRIPTS")/MavericksToolchain.cmake" \
-            -DMAVERICKS_EXPECTED_MODE=cross -DCMAKE_OSX_ARCHITECTURES=x86_64
-          cmake --build "$BUILD"
+          shipyard-cmake --preset cross
+          shipyard-cmake --build --preset cross
+
+      - name: Locate the build
+        run: echo "BUILD=${TMPDIR:-/tmp}/mm-build/$(basename "$PWD")-cross" >> "$GITHUB_ENV"
 
       - name: Run the repo's tests
         run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
