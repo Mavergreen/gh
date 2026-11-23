@@ -26,8 +26,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26
-    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     outputs:
       ver: ${{ steps.ver.outputs.ver }}
       publish: ${{ steps.ver.outputs.publish }}
@@ -42,16 +42,16 @@ jobs:
         run: echo "golang=$(tr -d '[:space:]' < components/golang/version)" >> "$GITHUB_OUTPUT"
 
       # spec: shipyard .github/actions/install/action.yml `products` -- installs go127-cross at the pin and, first, what it requires
-      #       (longboat, then sdk109 for the external darwin link), as `mavergreen install` will
+      #       (clang22, recaulk and sdk109 for the external darwin link), at /usr/local/mavergreen on Linux as on a Mac
       - name: Install mavericks-shipyard and the golang-127 cross toolchain
         uses: Mavergreen/shipyard/.github/actions/install@v1
         with:
           products: go127-cross@${{ steps.pins.outputs.golang }}
 
-      - name: Record the toolchain
+      - name: Build out of tree
         run: |
-          clang --version
-          xcodebuild -version
+          echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
+          echo "BUILD=$RUNNER_TEMP/mm-build/gh-cross" >> "$GITHUB_ENV"
 
       - name: Record the pre-build tree
         run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
@@ -89,14 +89,13 @@ jobs:
           { echo "ver=$full"; echo "publish=$pub"; } >> "$GITHUB_OUTPUT"
           echo "version=$full publish=$pub"
 
-      - name: Cross-build gh, then the compat guard
+      # platform: shipyard's presets live in its macOS pkg, so a Linux configure names the toolchain file and the cross mode itself
+      - name: Cross-build gh for 10.9 with the Linux-hosted go127-cross
         run: |
-          shipyard-cmake --preset cross
-          shipyard-cmake --build --preset cross
-          shipyard-ctest --preset cross
-
-      - name: Locate the build
-        run: echo "BUILD=${TMPDIR:-/tmp}/mm-build/$(basename "$PWD")-cross" >> "$GITHUB_ENV"
+          set -eu
+          cmake -S . -B "$BUILD" -DCMAKE_TOOLCHAIN_FILE="$(dirname "$SHIPYARD_SCRIPTS")/MavericksToolchain.cmake" \
+            -DMAVERICKS_EXPECTED_MODE=cross -DCMAKE_OSX_ARCHITECTURES=x86_64
+          cmake --build "$BUILD"
 
       - name: Run the repo's tests
         run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
@@ -113,6 +112,28 @@ jobs:
           if-no-files-found: error
           retention-days: 3
           path: ${{ runner.temp }}/gobin.tar
+
+  objc-guard:
+    needs: [build]
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: gobin
+          path: ${{ runner.temp }}
+
+      - name: Unpack the built gh
+        run: tar -xf "$RUNNER_TEMP/gobin.tar" -C "$RUNNER_TEMP"
+
+      - name: The compat guard, with every Objective-C send measured
+        run: sh build/compat-guard.sh "$RUNNER_TEMP/gobin/gh"
 
   package:
     needs: [build]
@@ -267,7 +288,7 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [build, package, scan, on-mavericks]
+    needs: [build, objc-guard, package, scan, on-mavericks]
     if: needs.build.outputs.publish == 'yes'
     permissions:
       contents: write
@@ -289,7 +310,7 @@ jobs:
   required:
     name: required (release)
     if: always()
-    needs: [build, package, on-mavericks, scan, publish, retry]
+    needs: [build, objc-guard, package, on-mavericks, scan, publish, retry]
     runs-on: ubuntu-latest
     steps:
       - uses: Mavergreen/shipyard/.github/actions/required-gate@v1

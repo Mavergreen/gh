@@ -19,7 +19,7 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 
 ## Conformance deviations
 
-- macos-runner:release.yml:build: golang-127's cross toolchain runs only on macOS; exit: a Linux-hosted golang-127
+- macos-runner:release.yml:objc-guard: drydock-objc's strict analyzer measures Objective-C sends only on macOS; exit: Drydock's Linux analyze
 
 ## Decisions
 
