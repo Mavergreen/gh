@@ -172,8 +172,6 @@ jobs:
           set -eu
           sh "$SHIPYARD_SCRIPTS/release-notes.sh" --tag "$VER" --version "$VER" \
             --product "GitHub CLI" --min-os 10.9.5 --out "$BUILD/dist/RELEASE_NOTES.md"
-          printf '\n%s\n' "\`gh-$VER-macos-x86_64.tar.gz\` is gh's tree alone, to unpack anywhere: no updater, no installer." \
-            >> "$BUILD/dist/RELEASE_NOTES.md"
 
       - name: Record the declared state in the notes
         if: env.PUBLISH == 'yes'
