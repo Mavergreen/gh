@@ -4,7 +4,9 @@
 #          GH-OUT is build-gh.sh's output: gh, LICENSE and share/. Stages gh (byte for byte as built and
 #          tested), its man pages and completions, gh's LICENSE, the README and the updater under
 #          /usr/local/mavergreen/gh, and wraps them in a 10.9.5-floored product archive,
-#          OUT-DIR/gh-VERSION.pkg, whose path it prints.
+#          OUT-DIR/gh-VERSION.pkg, whose path it prints. From the same staged root it writes the
+#          standalone archive, OUT-DIR/gh-VERSION-macos-x86_64.tar.gz: gh's tree without the manifest
+#          or the updater.
 set -eu
 U="usage: build-pkg.sh UPDATER-APP GH-OUT VERSION OUT-DIR"
 APP=${1:?$U}
@@ -34,9 +36,10 @@ find "$T/share" -type d -exec chmod 0755 {} +
 find "$ROOT" -name '._*' -delete
 sh "$SHIPYARD/stage_product.sh" --stage "$ROOT" --product gh --name "GitHub CLI for Mavericks" --version "$V" \
   --scripts-out "$work/scripts" --updater-app "$APP" >&2
+mkdir -p "$OUTDIR"
+sh "$SHIPYARD/stage_standalone.sh" "$ROOT" gh "$V" x86_64 "$OUTDIR/gh-$V-macos-x86_64.tar.gz" >&2
 sh "$SHIPYARD/build_component_pkg.sh" --root "$ROOT" --identifier dev.mavergreen.gh \
   --version "$V" --install-location / --scripts "$work/scripts" --out "$work/gh-component.pkg" >&2
-mkdir -p "$OUTDIR"
 OUT=$OUTDIR/gh-$V.pkg
 sh "$SHIPYARD/set_install_floor.sh" --identifier dev.mavergreen.gh --title "GitHub CLI for Mavericks" \
   --component "$work/gh-component.pkg" --out "$OUT" --require-scripts --host-arch x86_64 >&2
