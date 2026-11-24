@@ -89,6 +89,9 @@ jobs:
           shipyard-cmake --preset cross
           shipyard-cmake --build --preset cross
 
+      - name: The compat guard, with every Objective-C send measured
+        run: shipyard-ctest --preset cross
+
       - name: Locate the build
         run: echo "BUILD=${TMPDIR:-/tmp}/mm-build/$(basename "$PWD")-cross" >> "$GITHUB_ENV"
 
@@ -107,28 +110,6 @@ jobs:
           if-no-files-found: error
           retention-days: 3
           path: ${{ runner.temp }}/gobin.tar
-
-  objc-guard:
-    needs: [build]
-    runs-on: macos-26
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: Mavergreen/shipyard/.github/actions/install@v1
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: gobin
-          path: ${{ runner.temp }}
-
-      - name: Unpack the built gh
-        run: tar -xf "$RUNNER_TEMP/gobin.tar" -C "$RUNNER_TEMP"
-
-      - name: The compat guard, with every Objective-C send measured
-        run: sh build/compat-guard.sh "$RUNNER_TEMP/gobin/gh"
 
   package:
     needs: [build]
@@ -280,7 +261,7 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [build, objc-guard, package, scan, on-mavericks]
+    needs: [build, package, scan, on-mavericks]
     if: needs.build.outputs.publish == 'yes'
     permissions:
       contents: write
@@ -302,7 +283,7 @@ jobs:
   required:
     name: required (release)
     if: always()
-    needs: [build, objc-guard, package, on-mavericks, scan, publish, retry]
+    needs: [build, package, on-mavericks, scan, publish, retry]
     runs-on: ubuntu-latest
     steps:
       - uses: Mavergreen/shipyard/.github/actions/required-gate@v1
