@@ -9,8 +9,7 @@ set -eu
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 OUT=${1:?usage: build-updater.sh OUT-DIR}
 . "$REPO/build/msc.sh"
-if [ "$(uname -s)" = Linux ]; then SC="$(command -v cmake)"
-else SC="$(command -v shipyard-cmake || echo /usr/local/mavergreen/bin/shipyard-cmake)"; fi
+SC="$(command -v shipyard-cmake || echo /usr/local/mavergreen/bin/shipyard-cmake)"
 TC="$(dirname "$SHIPYARD_SCRIPTS")/MavericksToolchain.cmake"
 CL="$(sh "$REPO/build/fetch-clang22.sh")"
 LIPO="$CL/bin/llvm-lipo"; OTOOL="$CL/bin/llvm-otool"; NM="$CL/bin/llvm-nm"; STRINGS="$CL/bin/llvm-strings"
