@@ -19,8 +19,6 @@ Everything baked into what GitHub CLI for Mavericks ships, and how a change to i
 
 ## Conformance deviations
 
-- macos-runner:release.yml:objc-guard: drydock-objc's strict analyzer measures Objective-C sends only on macOS; exit: Drydock's Linux analyze
-
 ## Decisions
 
 The package carries an x86_64 `gh` only, not a universal one. Go 1.27's darwin/arm64 linker stamps a
