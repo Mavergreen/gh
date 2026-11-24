@@ -150,9 +150,6 @@ jobs:
           echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
           echo "BUILD=$RUNNER_TEMP/gh" >> "$GITHUB_ENV"
 
-      - name: The pkg test reads its payload with cpio
-        run: command -v cpio || { sudo apt-get update -qq && sudo apt-get install -y -qq cpio; }
-
       - name: Pin the version the build job resolved
         run: printf '%s\n' "$VER" > VERSION
 
