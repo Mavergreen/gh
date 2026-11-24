@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: host-agnostic -- stevedore expands the product archive, cpio lists its payload, and clang22's llvm-lipo reads the updater
+# platform: host-agnostic -- shipyard's pkg_read.sh extracts the gh component, and clang22's llvm-lipo reads the updater
 #   usage: package-test.sh PKG GH-BIN
 #          The pkg must be named gh-<version>.pkg and its gh component must carry exactly bin/gh, gh's
 #          man pages (at least 100 share/man/man1/gh*.1), its bash, zsh and fish completions, gh's
@@ -20,14 +20,8 @@ a_file_exists "the pkg exists" "$PKG"
 a_file_exists "the tested gh exists" "$GHBIN"
 
 t_tmp T
-SD="$(sh "$SHIPYARD_SCRIPTS/fetch_stevedore.sh")"
-"$SD" expand "$PKG" "$T/x" >/dev/null
-C="$(grep -l 'identifier="dev.mavergreen.gh"' "$T"/x/*/PackageInfo | sed 1q)"
-a_eq 1 "$([ -n "$C" ] && echo 1 || echo 0)" "the product archive carries the gh component"
-C="$(dirname "$C")"
-mkdir "$T/out"
-gzip -dc < "$C/Payload" > "$T/payload.cpio" || _a_fail "the pkg's payload must decompress"
-( cd "$T/out" && cpio -id --quiet < "$T/payload.cpio" ) || _a_fail "cpio must extract the pkg's payload"
+sh "$SHIPYARD_SCRIPTS/pkg_read.sh" payload "$PKG" dev.mavergreen.gh "$T/out" \
+  || _a_fail "the product archive must carry one gh component whose payload extracts"
 ( cd "$T/out" && find . -type f | sed 's|^\./||' ) > "$T/bom"
 a_eq 1 "$(grep -c 'gh-updater\.app/Contents/Frameworks/Sparkle\.framework/Versions/A/Sparkle$' "$T/bom")" "the Sparkle binary is in the payload"
 a_eq "" "$(cd "$T/out" && { find . -type f ! -perm -004; find . -type d ! -perm -001; })" "every payload file is world-readable and every directory world-searchable"
